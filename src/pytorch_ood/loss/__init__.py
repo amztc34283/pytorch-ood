@@ -185,6 +185,7 @@ from .center import CenterLoss
 from .conf import ConfidenceLoss
 from .crossentropy import CrossEntropyLoss
 from .energy import EnergyRegularizedLoss
+from .scone import EnergyMarginLoss
 from .entropy import EntropicOpenSetLoss
 from .ii import IILoss
 from .mchad import MCHADLoss
