@@ -12,8 +12,9 @@ TinyImages database, which contains random images scraped from the internet.
 
 """
 import torch
+import torch.nn as nn
 import torchvision.transforms as tvt
-from torch.optim import Adam
+from torch.optim import SGD
 from torch.utils.data import DataLoader
 from torchvision.datasets import CIFAR10
 
@@ -21,12 +22,12 @@ from pytorch_ood.dataset.img import Textures, TinyImages300k
 from pytorch_ood.detector import EnergyBased
 from pytorch_ood.loss import EnergyMarginLoss
 from pytorch_ood.model import WideResNet
-from pytorch_ood.utils import OODMetrics, ToUnknown, evaluate_classification_loss_training
+from pytorch_ood.utils import OODMetrics, ToUnknown, evaluate_classification_loss_training, logistic_regression
 
 torch.manual_seed(123)
 
 # maximum number of epochs and training iterations
-n_epochs = 10
+n_epochs = 100
 device = "cuda:0"
 
 # %%
@@ -56,9 +57,9 @@ dataset_out_test = Textures(
 train_loader = DataLoader(
     dataset_in_train + dataset_out_train, batch_size=64, shuffle=True
 )
-test_loader = DataLoader(dataset_in_test + dataset_out_test, batch_size=64)
+test_loader = DataLoader(dataset_in_test + dataset_out_test, batch_size=128)
 
-train_loader_in = DataLoader(dataset_in_train, batch_size=64)
+train_loader_in = DataLoader(dataset_in_train, batch_size=128)
 
 # %%
 # Create DNN, pretrained on the imagenet excluding cifar10 classes
@@ -69,9 +70,12 @@ model.fc = torch.nn.Linear(model.fc.in_features, 10)
 
 model.to(device)
 
-opti = Adam(model.parameters())
+opti = SGD(list(model.parameters()) + list(logistic_regression.parameters()), lr=0.0001, momentum=0.9, weight_decay=0.0005, nesterov=True)
 full_train_loss = evaluate_classification_loss_training(model=model, train_loader_in=train_loader_in)
 criterion = EnergyMarginLoss(full_train_loss=full_train_loss)
+
+scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer=opti,
+                                                 milestones=[int(n_epochs*.5), int(n_epochs*.75), int(n_epochs*.9)], gamma=0.5)
 
 # %%
 # Define a function to test the model
@@ -101,3 +105,4 @@ for epoch in range(n_epochs):
         opti.step()
     criterion.update_hyperparameters(model=model, train_loader_in=train_loader_in)
     test()
+    scheduler.step()
