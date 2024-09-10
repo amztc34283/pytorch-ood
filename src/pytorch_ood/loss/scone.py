@@ -8,7 +8,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from ..loss.crossentropy import cross_entropy
-from ..utils import apply_reduction, is_known, is_unknown, logistic_regression, evaluate_energy_logistic_loss
+from ..utils import apply_reduction, is_known, is_unknown, evaluate_energy_logistic_loss
 
 
 def _energy(logits: torch.Tensor) -> torch.Tensor:
@@ -69,7 +69,7 @@ class EnergyMarginLoss(nn.Module):
         self.penalty_mult = torch.tensor(penalty_mult).float()
         self.constraint_tol = torch.tensor(constraint_tol).float()
 
-    def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
+    def forward(self, logits: torch.Tensor, targets: torch.Tensor, logistic_regression: torch.Tensor) -> torch.Tensor:
         """
         Calculates weighted sum of cross-entropy and the energy regularization term.
 
@@ -78,16 +78,15 @@ class EnergyMarginLoss(nn.Module):
         """
         # for classification
         if len(logits.shape) == 2:
-            energy_loss_in, energy_loss_out = self._sigmoid_loss(logits=logits, y=targets)
+            energy_loss_in, energy_loss_out = self._sigmoid_loss(logits=logits, y=targets,logistic_regression=logistic_regression)
             loss_in = self._alm_in_distribution_constraint(energy_loss_in=energy_loss_in)
             loss_ce = F.cross_entropy(logits[is_known(targets)], targets[is_known(targets)])
             loss_ce = self._alm_cross_entropy_constraint(loss_ce=loss_ce)
         else:
             raise ValueError(f"Unsupported input shape: {logits.shape}")
         return apply_reduction(loss_ce + self.out_constraint_weight * energy_loss_out + loss_in, reduction=None)
-        # return apply_reduction(energy_loss_out, reduction=None)
 
-    def _sigmoid_loss(self, logits: torch.Tensor, y: torch.Tensor) -> torch.Tensor:
+    def _sigmoid_loss(self, logits: torch.Tensor, y: torch.Tensor, logistic_regression: torch.Tensor) -> torch.Tensor:
         # for classification
         known = is_known(y)
         
@@ -117,8 +116,8 @@ class EnergyMarginLoss(nn.Module):
             loss_ce = - torch.pow(self.lam2, 2) * 0.5 / self.ce_constraint_weight
         return loss_ce
     
-    def update_hyperparameters(self, model, train_loader_in):
-        avg_sigmoid_energy_losses, _, avg_ce_loss = evaluate_energy_logistic_loss(model, train_loader_in)
+    def update_hyperparameters(self, model, train_loader_in, logistic_regression):
+        avg_sigmoid_energy_losses, _, avg_ce_loss = evaluate_energy_logistic_loss(model, train_loader_in, logistic_regression)
         
         # update lam
         in_term_constraint = avg_sigmoid_energy_losses -  self.false_alarm_cutoff

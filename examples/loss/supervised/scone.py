@@ -22,7 +22,7 @@ from pytorch_ood.dataset.img import Textures, TinyImages300k
 from pytorch_ood.detector import EnergyBased
 from pytorch_ood.loss import EnergyMarginLoss
 from pytorch_ood.model import WideResNet
-from pytorch_ood.utils import OODMetrics, ToUnknown, evaluate_classification_loss_training, logistic_regression
+from pytorch_ood.utils import OODMetrics, ToUnknown, evaluate_classification_loss_training
 
 torch.manual_seed(123)
 
@@ -70,6 +70,10 @@ model.fc = torch.nn.Linear(model.fc.in_features, 10)
 
 model.to(device)
 
+logistic_regression = nn.Linear(1, 1)
+
+logistic_regression.to(device)
+
 opti = SGD(list(model.parameters()) + list(logistic_regression.parameters()), lr=0.0001, momentum=0.9, weight_decay=0.0005, nesterov=True)
 full_train_loss = evaluate_classification_loss_training(model=model, train_loader_in=train_loader_in)
 criterion = EnergyMarginLoss(full_train_loss=full_train_loss)
@@ -99,10 +103,10 @@ for epoch in range(n_epochs):
     print(f"Epoch {epoch}")
     for x, y in train_loader:
         logits = model(x.to(device))
-        loss = criterion(logits, y.to(device))
+        loss = criterion(logits, y.to(device), logistic_regression)
         opti.zero_grad()
         loss.backward()
         opti.step()
-    criterion.update_hyperparameters(model=model, train_loader_in=train_loader_in)
+    criterion.update_hyperparameters(model=model, train_loader_in=train_loader_in, logistic_regression=logistic_regression)
     test()
     scheduler.step()

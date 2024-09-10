@@ -351,12 +351,9 @@ def extract_features(
     y = buffer.get("label")
     return z, y
 
+
 def to_np(x): return x.data.cpu().numpy()
 
-if torch.cuda.is_available():
-    logistic_regression = nn.Linear(1, 1).cuda()
-else:
-    logistic_regression = nn.Linear(1, 1)
 
 def evaluate_classification_loss_training(model: Callable[[Tensor], Tensor], train_loader_in: DataLoader): # TODO
     '''
@@ -383,11 +380,11 @@ def evaluate_classification_loss_training(model: Callable[[Tensor], Tensor], tra
 
     return avg_loss
 
-def evaluate_energy_logistic_loss(model, train_loader_in):
+
+def evaluate_energy_logistic_loss(model, train_loader_in, logistic_regression):
     '''
     evaluate energy logistic loss on training dataset
     '''
-
     model.eval()
     sigmoid_energy_losses = []
     logistic_energy_losses = []
@@ -426,12 +423,9 @@ def evaluate_energy_logistic_loss(model, train_loader_in):
         ce_losses.extend(list(to_np(loss_ce)))
 
     avg_sigmoid_energy_losses = np.mean(np.array(sigmoid_energy_losses))
-    print("average sigmoid in distribution energy loss {}".format(avg_sigmoid_energy_losses))
 
     avg_logistic_energy_losses = np.mean(np.array(logistic_energy_losses))
-    print("average in distribution energy loss {}".format(avg_logistic_energy_losses))
 
     avg_ce_loss = np.mean(np.array(ce_losses))
-    print("average loss fr classification {}".format(avg_ce_loss))
 
     return avg_sigmoid_energy_losses, avg_logistic_energy_losses, avg_ce_loss
